@@ -13,7 +13,7 @@ from geometry_msgs.msg import Twist
 
 #Modulos de calculo
 from tf.transformations import euler_from_quaternion
-from math import atan, sqrt
+from math import atan, sqrt, inf
 
 #Modulos especificos
 import threading
@@ -228,9 +228,9 @@ class Laser:
 		1. set_obs_lim --> permite fijar la distancia en la que se detectan obstaculos
 		2. _find_angle --> identifica la posicion en el arreglo de angulos en la que se encuentra
 						   el angulo mas cercano al valor dado
-		3.get_obs_params --> retorna un objeto Obstacle con los parametros de obstaculo
+		3. get_obs_params --> retorna un objeto Obstacle con los parametros de obstaculo
 	"""
-	def __init__(self):
+	def __init__(self, ref_space = 0.47):
 		self.sub = rospy.Subscriber('/hsrb/base_scan', LaserScan, self._laser_cb) #Subscriptor
 		
 		#Informacion del mensaje
@@ -249,7 +249,15 @@ class Laser:
 		self.angles = None
 		
 		#Limite de obstaculo
-		self.obs_lim = 1
+		self.obs_lim = 0.5
+		
+		#Obstacle watchout
+		self.ObstacleThread = threading.Thread(target=self._obstacle_task)	#Tarea
+		self.WatchoutState = False 	
+		self.pos = None
+		self.ref_space = ref_space
+		self.obs_flag = False
+		self.obs_obj = None
 		
 	def _laser_cb(self, msg):
 		#Extraer la data
@@ -292,8 +300,9 @@ class Laser:
 		angle_index = self._find_angle(ref_angle) #Indice el angulo del vector de movimiento
 		angles_tf = self.angles - self.angles[angle_index] #Transformar angulos respecto a la referencia
 		d = self.lectura * np.cos(angles_tf) #Componente vertical de la distancia
-		c = self.lectura * np.sin(angles_tf) #Componente horizontal de la distancia
-		d = np.where(c <= ref_space, d, inf) #Eliminando (inf) los valores que no estan dentro de la zona de choque
+		c = abs(self.lectura * np.sin(angles_tf)) #Componente horizontal de la distancia	
+		d = np.where(c <= ref_space/2, d, inf) #Eliminando (inf) los valores que no estan dentro de la zona de choque
+		
 		
 		obs = Obstacle() #Declarar objecto Obstaculo
 		criteria = min(d) < self.obs_lim #Hay colision?
@@ -321,7 +330,7 @@ class Laser:
 			if shift != 0:
 				angle_shift = -atan(ref_space/shift)
 			else:
-				angle_shift = 90
+				angle_shift = -np.pi/2 #90 grados
 			
 			#Dar valores al objeto
 			obs.set(criteria, index, distance, angle, angle_shift)
@@ -335,6 +344,34 @@ class Laser:
 			a que sentido tomara el angulo
 		"""
 		return obs
+	
+	def _obstacle_task(self):
+		while self.WatchoutState:
+			self.pos.get_coords()
+			self.obs_obj = self.get_obs_params(self.pos.current_angle, self.ref_space)
+			self.obs_flag = sef.obs_obj.criteria
+			time.sleep(0.01)
+				
+	def start_obs_task(self, pos):
+		if self.ObstacleThread.is_alive():
+			self.WatchoutState = False
+			while self.ObstacleThread.is_alive():
+				None
+		
+		self.pos = pos		
+		self.WatchoutState = True
+		self.ObstacleThread = threading.Thread(target=self._obstacle_task)
+		self.ObstacleTread.start()
+	
+	def stop_obs_task(self):
+		if self.ObstacleThread.is_alive():
+			self.WatchoutState = False
+			while self.ObstacleThread.is_alive():
+				None
+		else:
+			self.WatchoutState = False
+		self.obs_flag = False
+		
 	
 class MovController:
 	"""
@@ -351,30 +388,28 @@ class MovController:
 	Para parar el control de forma forzada, se utiliza el metodo stop_control
 	
 	El sistema detiene el proceso de control automaticamente cuando el error
-	y la salida son	inferiores a un limite:
+	es menor a un limite:
 		El error limite del control angular es 0.01 rad
-		La velocidad limite del control angular es 0.01 rad/s
-		El error limite del control de coordenadas es 0.01 m 
-		La velocidad limite del control de coordenadas es 0.001 m/s
+		El error limite del control de coordenadas es 0.1 m 
 		
 	La diferencia entre el paro automatico y el paro forzado es que en el automatico
 	se conserva la velocidad de las variables no controladas
 	"""
-	def __init__(self, pos, mov, T=0.1):
+	def __init__(self, pos, mov, obs = None, T=0.1):
 		self.pos = pos 	#Objeto de Posicion
 		self.mov = mov 	#Objeto de Movimiento
+		self.obs = obs 	#Objeto de Obstaculos
 		self.T = T 		#Periodo de muestreo
 		
 		self.MovControlThread = threading.Thread(target=self._control_task)	#Tarea
 		self.ControlMode = 0 	#0: OFF, 1: Angle Control, 2: Coordinate Control
+		#self.ObstacleState = False
 		
 		#Variables del sistema de control
 		self.SP = None			#Set point
-		self.error = None 		#Current Error e(t) = SP - x(t)
+		self.error = None 		#Error e(t) = SP - x(t)
 		self.output = None		#Control Variable y(t) = L-1{E(s)*TF(s)}
-		self.output_1 = 0		#Anterior Control Variable y(t) = L-1{E(s)*TF(s)}
-		self.input = None		#Current Variable sensada x(t)
-		self.input_1 = 0		#Anterior Variable sensada x(t)
+		self.input = None		#Variable sensada x(t)
 			
 		
 	def _control_task(self):
@@ -386,6 +421,10 @@ class MovController:
 				KP = 0.3	#Constante de control proporcional
 				self.input = self.pos.get_current_angle() 	#Medir angulo
 				self.error = self.SP - self.input		#Calcular error
+				if self.error > np.pi:
+					self.error -= 2*np.pi
+				elif self.error < -np.pi:
+					self.error += 2*np.pi
 				self.output = KP * self.error			#Calcular salida Kp * e(t)
 				
 				#Truncar salida a 0.3 rad/s
@@ -411,25 +450,17 @@ class MovController:
 				
 			elif self.ControlMode == 2: #Coordinate Control
 				KP = 0.15	#Constante de control proporcional
-				KI = 0.01
 				self.input = self.pos.get_coords()		#Medir coordenadas
 				self.error = self.SP - self.input	#Calcular errores
 				self.output = KP * self.error		#Calcular salidas
-										
+				
 				#Parar salida a 10cm
 				self.output[0] = self.output[0] if abs(self.error[0]) >= 0.1 else 0
 				self.output[1] = self.output[1] if abs(self.error[1]) >= 0.1 else 0
 				
-				if(abs(self.error[1]) <= 0.1):
-					self.output = KI*(self.output_1+(self.T/2)*(self.input+self.input_1))
-					self.output[0] = self.output[0] if abs(self.error[0]) >= 0.05 else 0
-					self.output[1] = self.output[1] if abs(self.error[1]) >= 0.05 else 0
-					self.input_1=self.input
-					self.output_1=self.output
-				
 				#Transformar en base al nuevo sistema de coordenadas
 				theta = self.pos.current_angle
-				T_matrix = np.array([[np.cos(theta), np.sin(theta)],[-np.sin(theta), np.cos(theta)]])
+				T_matrix = np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]])
 				self.output = np.dot(self.output, T_matrix)
 				
 				#Truncar salidas a 0.3 m/s
@@ -445,6 +476,7 @@ class MovController:
 				now = rospy.Time.now().to_sec()
 				while (now - last) < self.T:
 					now = rospy.Time.now().to_sec()
+					#self._obstacle_manage()
 					
 				#Ultimo tiempo
 				last = rospy.Time.now().to_sec()
@@ -455,7 +487,7 @@ class MovController:
 					self.output[1] = 0
 					self.mov.move_base(0,0,self.mov.obj.angular.z);	
 					break
-						
+					
 			else:
 				self.mov.move_base(0,0,0) #Stop
 				break
@@ -478,8 +510,104 @@ class MovController:
 	
 	def change_SP(self, SP):
 		self.SP = SP
-		
 
+class SM_state:
+	def __init__(self, identifier, exec_cb, end_cb):
+		self.identifier = identifier
+		self.exec_cb = exec_cb
+		self.end_cb = end_cb
+		
+		self.stateThread = threading.Thread(target=self._state_task)
+		self.interrupt = threading.Thread(target=self._interrupt_task)
+		
+		self.stateBreak = False
+		self.next = identifier
+		
+	def start_state(self):
+		if self.stateThread.is_alive():
+			self.stateBreak = False
+			while self.stateThread.is_alive():
+				None
+		self.stateBreak = True
+		
+		self.stateThread = threading.Thread(target=self._state_task)
+		self.stateThread.start()
+		
+		time.sleep(0.1)
+		if not self.interrupt.is_alive():
+			self.interrupt = threading.Thread(target=self._interrupt_task)
+			self.interrupt.start()
+	
+	def stop_state(self):
+		if self.stateThread.is_alive():
+			self.stateBreak = False
+			while self.stateThread.is_alive():
+				None
+		self.stateBreak = False
+	
+	def _state_task(self):
+		while self.stateBreak:
+			self.exec_cb()
+	
+	def _interrupt_task(self):
+		while self.stateBreak:
+			self.next = self.end_cb()
+					
+class StateMachine:
+	def __init__(self):
+		self.operational = False
+		self.statesN = 0
+		self.statesDict = {}
+		self.current_state = None
+		self.previous_state = None
+		self.machineThread = threading.Thread(target=self._machine_task)
+	
+	def add_state(self, identifier, exec_cb, end_cb):
+		state = SM_state(identifier, exec_cb, end_cb)
+		self.statesDict[identifier] = state
+		self.stateN = self.statesN + 1
+	
+	def delete_state(self, identifier):
+		self.stateN = self.statesN - 1
+		self.statesDict.pop(identifier, None)
+	
+	def start_machine(self,initial_state):
+		if self.machineThread.is_alive():
+			self.operational = False
+			while self.machineThread.is_alive():
+				None
+		self.operational = True
+		self.current_state = initial_state
+		self.previous_state = initial_state
+		self.machineThread = threading.Thread(target=self._machine_task)
+		self.machineThread.start()
+	
+	def stop_machine(self):
+		if self.machineThread.is_alive():
+			self.operational = False
+			while self.machineThread.is_alive():
+				None
+	
+	def _machine_task(self):
+		while self.operational:
+			self.statesDict[self.current_state].start_state()
+			
+			##Debugging
+			print("Entered State ", self.current_state)
+			
+			while self.statesDict[self.current_state].next == self.current_state and self.operational:
+				None
+			self.statesDict[self.current_state].stop_state()
+			self.previous_state = self.current_state
+			self.current_state = self.statesDict[self.current_state].next
+			
+def showTimeMark():
+	tim = 0
+	while tim == 0:
+		tim = rospy.get_time()
+	minute = tim // 60
+	seconds = tim - minute*60
+	print("Tiempo: %d minutos, %.3f segundos" % (minute, seconds))	
 	
 def test_no_obs():
     rospy.init_node('etapa02_node')
@@ -535,33 +663,6 @@ def test_no_obs():
                 mov.move_base(0,0,0);
                 cntrl.start_control(2, frame.final)
         
-        """
-        print("Pos Final: ",end="")
-        print(frame.final)
-        print("Ang Final: ",end="")
-        print(frame.final_angle)
-        
-        print("Ang Objetivo: ",end="")
-        print(frame.target_angle)
-        
-        print("")
-        
-        if laser.meas_state:
-        	print(min(laser.lectura))
-        	print(max(laser.lectura))
-        
-        if state == 1:
-        	print("Not inverted")
-        	mov.move_base_vel(0.1,0,0)
-        elif state == -1:
-        	print("Inverted")
-        	mov.move_base_vel(-0.1,0,0)
-        
-        count = count + 1
-        if count == 10:
-        	state = state * -1
-        	count = 0
-        """
         rate.sleep()
    
-   
+
