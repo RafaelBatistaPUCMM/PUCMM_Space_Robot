@@ -265,7 +265,6 @@ def S5_end():
 	return "S5"
 	
 def S6_exec():
-	showTimeMark()
 	print("Target Acquired")
 	global reached
 	reached = True
@@ -284,13 +283,10 @@ sm.add_state("S6", S6_exec, S6_end) #End
 sm.start_machine("S1")
        
 def main():
-	showTimeMark()
 	rate = rospy.Rate(2)
 	while (not rospy.is_shutdown()) and (not reached):
 		try:
 			angle = pos.find_angle()
-			
-			showTimeMark()
 			print("Target Angle (rad): ",end="")
 			print(angle)
 			print("Target Pos: ",end="")

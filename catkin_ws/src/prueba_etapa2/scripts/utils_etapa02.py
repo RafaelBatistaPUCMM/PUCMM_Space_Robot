@@ -591,23 +591,15 @@ class StateMachine:
 	def _machine_task(self):
 		while self.operational:
 			self.statesDict[self.current_state].start_state()
-			
 			##Debugging
 			print("Entered State ", self.current_state)
-			
 			while self.statesDict[self.current_state].next == self.current_state and self.operational:
 				None
 			self.statesDict[self.current_state].stop_state()
 			self.previous_state = self.current_state
 			self.current_state = self.statesDict[self.current_state].next
 			
-def showTimeMark():
-	tim = 0
-	while tim == 0:
-		tim = rospy.get_time()
-	minute = tim // 60
-	seconds = tim - minute*60
-	print("Tiempo: %d minutos, %.3f segundos" % (minute, seconds))	
+		
 	
 def test_no_obs():
     rospy.init_node('etapa02_node')
@@ -663,6 +655,93 @@ def test_no_obs():
                 mov.move_base(0,0,0);
                 cntrl.start_control(2, frame.final)
         
+        """
+        print("Pos Final: ",end="")
+        print(frame.final)
+        print("Ang Final: ",end="")
+        print(frame.final_angle)
+        
+        print("Ang Objetivo: ",end="")
+        print(frame.target_angle)
+        
+        print("")
+        
+        if laser.meas_state:
+        	print(min(laser.lectura))
+        	print(max(laser.lectura))
+        
+        if state == 1:
+        	print("Not inverted")
+        	mov.move_base_vel(0.1,0,0)
+        elif state == -1:
+        	print("Inverted")
+        	mov.move_base_vel(-0.1,0,0)
+        
+        count = count + 1
+        if count == 10:
+        	state = state * -1
+        	count = 0
+        """
         rate.sleep()
    
+def test_obs():
+    rospy.init_node('etapa02_node')
+    frame = Posicion('/meta_competencia');
+    
+    mov = Movimiento()
+    cntrl = MovController(frame, mov)
+    laser = Laser()
+    
+    time.sleep(5)
+    angle = frame.find_angle()
+    time.sleep(5)
+    angle = frame.find_angle()
+    
+    print("Target Angle (rad): ")
+    print(angle)
+    print("Initiating Control")
+    print("")
+    
+    cntrl.start_control(1, angle)
+    
+    rate = rospy.Rate(2)
+    state = 1
+    count = 0
+    while not rospy.is_shutdown():
 
+        #mov.move_base(0,0,-0.3)
+        angle = frame.find_angle()
+        print("Target Angle (rad): ",end="")
+        print(angle)
+        print("Target Pos: ",end="")
+        print(frame.final)
+        print("Pos Actual: ",end="")
+        print(frame.actual)
+        print("Ang Actual: ",end="")
+        print(frame.current_angle)
+        print("Ang Vel Actual: ",end="")
+        print(mov.obj.angular.z)
+        print("Lin X Vel Actual: ",end="")
+        print(mov.obj.linear.x)
+        print("Lin Y Vel Actual: ",end="")
+        print(mov.obj.linear.y)
+        print("")
+        
+        if cntrl.ControlMode == 1:
+            cntrl.change_SP(angle)
+        
+        coord_1 = frame.actual
+        coord_2 = frame.final
+        distance = sqrt(sum((coord_2 - coord_1) ** 2))
+        if distance > 0.1 and cntrl.ControlMode == 1 and cntrl.output == 0:
+            mov.move_base(0.3,0,0)
+            if abs(frame.target_angle - frame.current_angle) > 0.5 and distance > sqrt(2):
+                mov.move_base(0,0,0);
+                cntrl.start_control(1, angle)
+                print("Initiating Correction")
+            elif distance <= sqrt(2):
+                mov.move_base(0,0,0);
+                cntrl.start_control(2, frame.final)
+        
+       
+        rate.sleep()

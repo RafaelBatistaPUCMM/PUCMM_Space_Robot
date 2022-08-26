@@ -18,16 +18,11 @@ class Orientation:
 		
 
 def main():
-	rospy.init_node('etapa02_node')
-	#angle = Orientation()
-	rate = rospy.Rate(2)
-	while not rospy.is_shutdown():
-		tim = rospy.get_time()
-		minute = tim // 60
-		seconds = tim - minute*60
-		print("%d minutos, %.3f segundos" % (minute, seconds))
-		print("")
-		rate.sleep()
+    rospy.init_node('etapa02_node')
+    angle = Orientation()
+    rate = rospy.Rate(2)
+    while not rospy.is_shutdown():
+        rate.sleep()
     		
        
 if __name__ == '__main__':
