@@ -1,0 +1,5 @@
+Los archivos contenidos en esta carpeta pertenecen a la etapa 2 de la competencia:
+
+1. utils_etapa02.py contiene las clases y funciones fundamentales para el desarrollo de la solucion (movimiento, control, obstaculos, posicion), asi como las funciones de prueba
+2. etapa02.py es donde se ejecutan las pruebas y donde se presentara la solucion final
+3. spin_test.py es un codigo de pruebas del sensor IMU
