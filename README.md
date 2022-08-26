@@ -23,7 +23,7 @@ Ilka Hernández\
 Patricia DiMassimo\
 Andry García\
 Alvin Rodríguez\
-Ángel Richard\
+Ángel Richard
 
 ## Contacto
 
