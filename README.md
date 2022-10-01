@@ -1,20 +1,16 @@
 # PUCMM Space Robot Team
-## _Etapa 02_
+## _Etapa 03_
 
-Ejercicios Etapa 02 Resueltos
+Ejercicios Etapa 03 Resueltos
 
 ## Comentarios
 
-1. Se creó un nuevo paquete llamado prueba_etapa2 y el ejecutable a correr es etapa02.py
-2. utils_etapa02.py contiene las clases y funciones fundamentales para el desarrollo de la solución (movimiento, control, obstaculos, posición), asi como las funciones de prueba.
-3. etapa02.py es donde se ejecutan las pruebas y donde se presentara la solución final.
-4. spin_test.py es un código de pruebas del sensor IMU.
-5. Es necesario tener el paquete ros_numpy instalado (http://wiki.ros.org/ros_numpy).
-
+1. Fue necesario crear nuestros propios SPAWNERS debido a que nunca funcionó el provisto en el repositorio
+2. Las capturas y el TXT de los objetos se encuentran en un enlace de GOOGLE DRIVE con un folder llamado OneDrive_1_10-1-2022
 
 Un video del funcionamiento de la solución se encuentra en:
 
-https://youtu.be/m3M0kQwhqfo
+https://youtu.be/4AmaTZ8EYrc
 
 ## Miembros Equipo
 
