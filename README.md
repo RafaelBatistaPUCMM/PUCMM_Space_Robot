@@ -1,21 +1,21 @@
 # PUCMM Space Robot Team
-## _Etapa 04_
+## _Etapa 05_
 
-Ejercicios Etapa 04 Resueltos
+Ejercicios Etapa 05 Resueltos
 
 ## Comentarios
 
-1. El archivo *.launch se encuentra en la siguiente dirección dentro de la carpeta de etapa04:
-      src/launch/stage04.launch
-2. Los códigos fuente se encuentran en src/scripts
+El código se encuentra repartido entre los siguientes archivos
 
-3. El mapa es generado múltiples veces durante la ejecución, al final, los archivos current_map.pgm y current_map.yaml, se encontrarán dentro de la carpeta home/.ros
+1. El nodo de la etapa corre con etapa05.py (en src/scripts)
 
-4. En este enlace de GOOGLE DRIVE puede ver el mapa resultante: https://drive.google.com/drive/folders/1EEhnENS4keCzuADgVFW_BtwoG2oOOa4Y?usp=sharing
+2. Las herramientas, como el control de brazo, esta en utils_etapa05.py (en src/scripts)
+
+3. El archivo launch es stage05.launch (en src)
 
 Un video del funcionamiento de la solución se encuentra en:
 
-https://youtu.be/dp2bwI5CWGo
+https://youtu.be/aTawTyd0AYg
 
 ## Miembros Equipo
 
